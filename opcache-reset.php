@@ -3,7 +3,7 @@
  * Plugin Name: OPcache Reset
  * Plugin URI: http://wordpress.org/plugins/opcache-reset/
  * Description: Automatic reset of OPcache
- * Version: 2.0.1
+ * Version: 2.1.0
  * Author: Danila Vershinin
  * Author URI: https://www.smartycode.com/
  * License: GPLv2 or later
@@ -25,7 +25,8 @@ function gps_opcache_reset() {
         return;
     }
 
-    if (! empty( ini_get( 'opcache.enable' ))) {
+
+    if (empty( ini_get( 'opcache.enable' ))) {
         // Do not try doing anything if OPcache is loaded but disabled
         return;
     }
@@ -47,9 +48,9 @@ function gps_opcache_reset() {
         }
     }
 
-    if ($fileCacheDir) {
+    if ($fileCacheDir && file_exists($fileCacheDir)) {
         // move it out of the way to avoid race conditions
-        rename($fileCacheDir, $fileCacheDir . '.rm');
+        shell_exec("mv ${fileCacheDir} ${fileCacheDir}.rm");
     }
 
     // We are in PHP-FPM context and not file cache only
@@ -59,11 +60,17 @@ function gps_opcache_reset() {
 
     if ($fileCacheDir) {
         shell_exec( 'php -d opcache.enable_cli=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset' );
-        unlink($fileCacheDir . '.rm');
+        if (file_exists("${fileCacheDir}.rm")) {
+            shell_exec("rm -rf ${fileCacheDir}.rm");
+        }
+        // make sure OPcache directory is re-created
+        shell_exec("mkdir -p ${fileCacheDir}");
     }
 
 }
 
 
 add_action( 'upgrader_process_complete', 'gps_opcache_reset', PHP_INT_MAX - 1, 2 );
+
+
 
