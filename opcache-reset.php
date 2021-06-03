@@ -21,6 +21,12 @@ if ( !function_exists( 'add_action' ) ) {
 function gps_opcache_reset() {
 
     if( ! function_exists('opcache_reset') ) {
+        // Bail if extension is not loaded
+        return;
+    }
+
+    if (! empty( ini_get( 'opcache.enable' ))) {
+        // Do not try doing anything if OPcache is loaded but disabled
         return;
     }
 
@@ -28,22 +34,34 @@ function gps_opcache_reset() {
         return;
     }
 
+    // https://www.getpagespeed.com/server-setup/php/zend-opcache
+    // Follow the principles of reliable file cache clearing from this article
+    $fileCacheDir = ini_get( 'opcache.file_cache' );
     // Check if file cache is enabled and delete it if enabled
-    if ( ini_get( 'opcache.file_cache' ) && is_writable( ini_get( 'opcache.file_cache' ) ) ) {
-        $files = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( ini_get('opcache.file_cache'), RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST );
-        foreach ( $files as $fileinfo ) {
-            $todo = ( $fileinfo->isDir() ? 'rmdir' : 'unlink' );
-            $todo( $fileinfo->getRealPath() );
+    if ( $fileCacheDir && is_writable( $fileCacheDir ) ) {
+        // check if we can create subdirectory in the parent directory.
+        // Normally, it's ~/.cache so we can
+        $cacheDir = dirname($fileCacheDir);
+        if (! is_writable($cacheDir)) {
+            $fileCacheDir = null;
         }
     }
 
-    if (! ini_get( 'opcache.file_cache_only' )) {
-        if (php_sapi_name() !== 'cli') {
-            opcache_reset();
-        } else {
-            shell_exec( 'cachetool opcache:reset' );
-        }
+    if ($fileCacheDir) {
+        // move it out of the way to avoid race conditions
+        rename($fileCacheDir, $fileCacheDir . '.rm');
     }
+
+    // We are in PHP-FPM context and not file cache only
+    if (php_sapi_name() !== 'cli' && ! ini_get( 'opcache.file_cache_only' )) {
+        opcache_reset();
+    }
+
+    if ($fileCacheDir) {
+        shell_exec( 'php -d opcache.enable_cli=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset' );
+        unlink($fileCacheDir . '.rm');
+    }
+
 }
 
 
