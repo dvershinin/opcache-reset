@@ -5,14 +5,22 @@
  * Description: Automatic reset of OPcache
  * Version: 2.1.0
  * Author: Danila Vershinin
- * Author URI: https://www.smartycode.com/
- * License: GPLv2 or later
+ * Author URI: https://www.getpagespeed.com/
+ * License: GPL2
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
 */
 
 // Make sure we don't expose any info if called directly
 if ( !function_exists( 'add_action' ) ) {
     echo 'Hi there!  I\'m just a plugin, not much I can do when called directly.';
     exit;
+}
+
+if ( is_admin() ) {
+    if (! (defined( 'DOING_AJAX' ) && DOING_AJAX)) {
+        // We are in admin mode: notices and such are handled here
+        require_once(__DIR__ . '/opcache-admin.php');
+    }
 }
 
 /**
