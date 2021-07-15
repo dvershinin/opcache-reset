@@ -2,7 +2,7 @@
 Tags: PHP, Zend, OPcache, cache
 Requires at least: 3.8
 Tested up to: 5.7
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=FN6V2EZ7FSHXE
 
@@ -22,6 +22,9 @@ Unlike other plugins, it is also compatible with WordPress updates made by Linux
 	5. The "which" utility (typically preinstalled), thus a Linux OS
 
 == Changelog ==
+
+= 2.1.1 =
+* No calling cachetool opcache:reset for setups with only file cache
 
 = 2.1.0 =
 * Handle file OPcaches in a consistent fashion

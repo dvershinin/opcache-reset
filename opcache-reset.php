@@ -59,12 +59,15 @@ function gps_opcache_reset() {
     }
 
     if ($fileCacheDir) {
-        shell_exec( 'php -d opcache.enable_cli=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset' );
-        if (file_exists("${fileCacheDir}.rm")) {
-            shell_exec("rm -rf ${fileCacheDir}.rm");
+        // if file cache only, do not use opcache:reset as it cannot clear file caches and yield error in such case
+        if (! ini_get( 'opcache.file_cache_only' )) {
+            shell_exec('php -d opcache.enable_cli=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset');
+        }
+        if ( file_exists( "${fileCacheDir}.rm" )) {
+            shell_exec( "rm -rf ${fileCacheDir}.rm" );
         }
         // make sure OPcache directory is re-created
-        shell_exec("mkdir -p ${fileCacheDir}");
+        shell_exec( "mkdir -p ${fileCacheDir}" );
     }
 
 }
