@@ -5,13 +5,14 @@ Tested up to: 5.7
 Stable tag: 2.1.1
 License: GPLv2 or later
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=FN6V2EZ7FSHXE
+Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
 
-Automatic OPcache reset for WordPress
+Automatic OPcache reset for WordPress. Invalidates both in-memory and file-based OPCache upon upgrading WordPress.
 
 == Description ==
 
-This plugin clears OPcache after updating Wordpress core, themes and files.
-Unlike other plugins, it is also compatible with WordPress updates made by Linux cron.
+This plugin clears OPcache after updating WordPress core, themes, and files.
+Unlike other plugins, it is also compatible with [WordPress updates made by Linux cron](https://www.getpagespeed.com/server-setup/performance-friendly-wordpress-updates).
 
 ### Notice
 * **Important**: To use this plugin, check the following.
