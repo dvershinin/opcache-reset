@@ -24,7 +24,7 @@ Unlike other plugins, it is also compatible with [WordPress updates made by Linu
 
 == Changelog ==
 
-= 2.1.1 =
+= 2.1.2 =
 * No calling cachetool opcache:reset for setups with only file cache
 
 = 2.1.0 =
