@@ -2,7 +2,7 @@
 Tags: PHP, Zend, OPcache, cache
 Requires at least: 3.8
 Tested up to: 5.7
-Stable tag: 2.1.1
+Stable tag: 2.1.6
 License: GPLv2 or later
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=FN6V2EZ7FSHXE
 Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
