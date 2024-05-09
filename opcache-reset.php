@@ -3,7 +3,7 @@
  * Plugin Name: OPcache Reset
  * Plugin URI: http://wordpress.org/plugins/opcache-reset/
  * Description: Automatic reset of OPcache
- * Version: 2.1.7
+ * Version: 2.1.8
  * Author: Danila Vershinin
  * Author URI: https://www.getpagespeed.com/
  * License: GPL2
@@ -67,10 +67,6 @@ function gps_opcache_reset() {
     }
 
     if ($fileCacheDir) {
-        // if file cache only, do not use opcache:reset as it cannot clear file caches and yield error in such case
-        if (! ini_get( 'opcache.file_cache_only' )) {
-            shell_exec('php -d opcache.enable_cli=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset');
-        }
         if ( file_exists( "${fileCacheDir}.rm" )) {
             shell_exec( "rm -rf ${fileCacheDir}.rm" );
         }
@@ -78,6 +74,18 @@ function gps_opcache_reset() {
         shell_exec( "mkdir -p ${fileCacheDir}" );
     }
 
+    // Irrespective of the context, we should attempt to clear the memory-based OPCache, because this script may be called from CLI
+    // and can't be aware of whether PHP-FPM is running with file_cache_only => On
+    // Since the script may be called via cron or PHP-FPM with clear_env settings, the PATH may not be set properly, so we need to set it
+    $username = getenv('USER');
+    $path = "/home/${username}/.local/bin:/usr/bin:/bin";
+    $systemPath = getenv('PATH');
+    if ($systemPath) {
+        $path .= ':' . $systemPath;
+    }
+    $cmd = 'php -d opcache.enable_cli=0 -d opcache.file_cache_only=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset';
+    // Run cachetool with the adjusted PATH
+    shell_exec("PATH=${path} ${cmd} 2>&1");
 }
 
 
