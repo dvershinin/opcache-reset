@@ -1,7 +1,7 @@
 === OPcache Reset ===
 Tags: PHP, Zend, OPcache, cache
 Requires at least: 3.8
-Tested up to: 6.8
+Tested up to: 6.9
 Stable tag: 2.2.0
 License: GPLv2 or later
 Donate link: https://github.com/sponsors/dvershinin
