@@ -1,1 +1,41 @@
+# WordPress files (if developing in wp-content)
+.htaccess
+wp-config.php
+wp-content/uploads/
+wp-content/blogs.dir/
+wp-content/upgrade/
+wp-content/backup-db/
+wp-content/advanced-cache.php
+wp-content/wp-cache-config.php
+wp-content/cache/
+wp-content/backups/
+
+# Logs and sitemaps
+*.log
+sitemap.xml
+sitemap.xml.gz
+
+# IDE and editors
 .idea/
+.vscode/
+.cursor/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Dependencies
+vendor/
+node_modules/
+
+# Build artifacts
+*.zip
+*.tar.gz

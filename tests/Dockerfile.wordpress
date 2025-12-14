@@ -1,0 +1,42 @@
+# WordPress with OPcache enabled, cachetool and wp-cli installed
+FROM wordpress:6.6-php8.2-apache
+
+# Install cachetool for OPcache management
+RUN curl -sLo /usr/local/bin/cachetool https://github.com/gordalina/cachetool/releases/latest/download/cachetool.phar \
+    && chmod +x /usr/local/bin/cachetool
+
+# Install wp-cli for plugin management from CLI
+RUN curl -sLo /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
+    && chmod +x /usr/local/bin/wp
+
+# Enable OPcache with recommended settings for testing
+RUN docker-php-ext-enable opcache
+
+# Configure OPcache for testing with validate_timestamps=0
+# This is CRITICAL for testing - it means OPcache will NOT auto-check file changes,
+# so we can prove that our reset mechanism actually works.
+RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.enable_cli=1" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.validate_timestamps=0" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.file_cache_consistency_checks=0" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.memory_consumption=128" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.interned_strings_buffer=8" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.max_accelerated_files=10000" >> /usr/local/etc/php/conf.d/opcache-testing.ini \
+    && echo "opcache.file_cache=/tmp/opcache" >> /usr/local/etc/php/conf.d/opcache-testing.ini
+
+# Create file cache directory
+RUN mkdir -p /tmp/opcache && chmod 777 /tmp/opcache
+
+# Configure Apache prefork to use 1 worker (CRITICAL for OPcache stale code testing)
+# With 1 worker, all requests hit the same process, so in-memory OPcache is shared.
+RUN echo '<IfModule mpm_prefork_module>\n\
+    StartServers 1\n\
+    MinSpareServers 1\n\
+    MaxSpareServers 1\n\
+    MaxRequestWorkers 1\n\
+    MaxConnectionsPerChild 0\n\
+</IfModule>' > /etc/apache2/mods-available/mpm_prefork.conf
+
+# Ensure cachetool can be found in PATH
+ENV PATH="/usr/local/bin:${PATH}"
+

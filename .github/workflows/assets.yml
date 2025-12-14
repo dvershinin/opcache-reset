@@ -2,13 +2,20 @@ name: Plugin asset/readme update
 on:
   push:
     branches:
-      - trunk
+      - main
+      - master
+    paths:
+      - 'readme.txt'
+      - '.wordpress-org/**'
+concurrency:
+  group: wordpress-svn-deploy
+  cancel-in-progress: false
 jobs:
   trunk:
     name: Push to trunk
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: WordPress.org plugin asset/readme update
         uses: 10up/action-wordpress-plugin-asset-update@stable
         env:

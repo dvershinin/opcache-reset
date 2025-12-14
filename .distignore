@@ -1,0 +1,33 @@
+# Directories
+/.git
+/.github
+/.wordpress-org
+/tests
+/.cursor
+
+# Files
+/.distignore
+/.gitignore
+/.editorconfig
+/Makefile
+/phpcs.xml.dist
+/phpstan.neon
+/phpstan-bootstrap.php
+/composer.json
+/composer.lock
+
+# SVG source files (PNGs are in .wordpress-org)
+*.svg
+
+# IDE/Editor files
+*.swp
+*.swo
+*~
+.idea
+.vscode
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+

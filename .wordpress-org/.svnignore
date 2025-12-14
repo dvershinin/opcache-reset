@@ -1,0 +1,5 @@
+# Don't sync SVG source files to WordPress.org SVN
+*.svg
+README.md
+.svnignore
+

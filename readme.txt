@@ -1,8 +1,9 @@
 === OPcache Reset ===
 Tags: PHP, Zend, OPcache, cache
-Requires at least: 3.8
+Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 2.2.0
+Requires PHP: 7.4
+Stable tag: 2.3.0
 License: GPLv2 or later
 Donate link: https://github.com/sponsors/dvershinin
 Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
@@ -22,6 +23,18 @@ Unlike other plugins, it is also compatible with [WordPress updates made by Linu
 	4. The "which" utility (typically preinstalled), thus a Linux OS
 
 == Changelog ==
+
+= 2.3.0 =
+* Added comprehensive Docker-based integration test suite (27 tests)
+* Added GitHub Actions CI for linting and testing
+* Added PHPStan and PHPCS for code quality
+* Improved OPcache reset verification with validate_timestamps=0 testing
+* Added pre-commit hooks for automated code checks
+* Updated plugin assets (icons, banners)
+
+= 2.2.0 =
+* Added support for file-based OPcache clearing with race condition handling
+* Improved cachetool invocation with proper PATH handling
 
 = 2.1.2 =
 * No calling cachetool opcache:reset for setups with only file cache
