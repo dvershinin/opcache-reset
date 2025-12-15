@@ -30,6 +30,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      php-fpm:
+        condition: service_healthy
     environment:
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_USER: wordpress
@@ -45,6 +47,7 @@ services:
       - ../:/var/www/html/wp-content/plugins/opcache-reset
       - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
       - ./fixtures:/workspace/tests/fixtures
+      - fpm_socket:/run/php
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/wp-login.php >/dev/null"]
       interval: 5s
@@ -102,6 +105,35 @@ services:
     networks:
       - opcache_net
 
+  # PHP-FPM service for testing direct FastCGI communication
+  php-fpm:
+    image: php:8.2-fpm
+    volumes:
+      - ../:/var/www/html/wp-content/plugins/opcache-reset
+      - fpm_socket:/run/php
+    command: >
+      sh -c "
+        docker-php-ext-enable opcache &&
+        echo 'opcache.enable=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
+        echo 'opcache.enable_cli=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
+        sed -i 's|listen = 9000|listen = /run/php/php-fpm.sock|' /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        sed -i '/listen.owner/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        sed -i '/listen.group/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        sed -i '/listen.mode/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.owner = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.group = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        php-fpm
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/php/php-fpm.sock"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    networks:
+      - opcache_net
+
 volumes:
   wp_data:
+  fpm_socket:
 

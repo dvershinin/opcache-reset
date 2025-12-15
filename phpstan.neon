@@ -18,6 +18,7 @@ parameters:
         - '#Function [a-zA-Z0-9\\\_]+ not found#'
         - '#Call to an undefined method WP_#'
         - '#Class (WP_[a-zA-Z_]+|WP_CLI[a-zA-Z_]*) not found#'
+        - '#Call to static method .+ on an unknown class WP_CLI#'
         - '#Constant [A-Z_]+ not found#'
         - '#Access to an undefined property#'
         - '#Access to property .+ on an unknown class#'

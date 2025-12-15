@@ -3,7 +3,7 @@
  * Plugin Name: OPcache Reset
  * Plugin URI: http://wordpress.org/plugins/opcache-reset/
  * Description: Automatic reset of OPcache
- * Version: 2.3.0
+ * Version: 2.4.0
  * Requires at least: 5.0
  * Requires PHP: 7.4
  * Author: Danila Vershinin
@@ -11,6 +11,20 @@
  * License: GPL2
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  */
+
+// Handle direct FastCGI OPcache reset request.
+// This param can ONLY be set via direct FastCGI connection to PHP-FPM.
+// nginx/Apache never forward arbitrary custom CGI params - only HTTP_* headers.
+// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Checking existence only.
+if ( isset( $_SERVER['GPS_OPCACHE_RESET_INTERNAL'] ) && '1' === $_SERVER['GPS_OPCACHE_RESET_INTERNAL'] ) {
+	if ( function_exists( 'opcache_reset' ) ) {
+		opcache_reset();
+		echo 'OK';
+	} else {
+		echo 'NO_OPCACHE';
+	}
+	exit;
+}
 
 // Make sure we don't expose any info if called directly
 if ( ! function_exists( 'add_action' ) ) {
@@ -23,6 +37,11 @@ if ( is_admin() ) {
 		// We are in admin mode: notices and such are handled here
 		require_once __DIR__ . '/opcache-admin.php';
 	}
+}
+
+// Load WP-CLI commands.
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	require_once __DIR__ . '/opcache-cli.php';
 }
 
 /**
@@ -84,9 +103,24 @@ function gps_opcache_reset() {
 	if ( $system_path ) {
 		$path .= ':' . $system_path;
 	}
-	$cmd = 'php -d opcache.enable_cli=0 -d opcache.file_cache_only=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset';
-	// Run cachetool with the adjusted PATH
-	shell_exec( "PATH={$path} {$cmd} 2>&1" );
+
+	// Try cachetool binary first.
+	$cachetool = trim( shell_exec( "PATH={$path} which cachetool 2>/dev/null" ) );
+	if ( $cachetool ) {
+		$cmd = 'php -d opcache.enable_cli=0 -d opcache.file_cache_only=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset';
+		shell_exec( "PATH={$path} {$cmd} 2>&1" );
+		return;
+	}
+
+	// Fallback: direct FastCGI if cachetool.yml exists.
+	require_once __DIR__ . '/opcache-fastcgi.php';
+	$config_path = gps_find_cachetool_config();
+	if ( $config_path ) {
+		$socket = gps_parse_cachetool_yml( $config_path );
+		if ( $socket ) {
+			gps_fastcgi_opcache_reset( $socket );
+		}
+	}
 }
 
 

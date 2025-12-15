@@ -30,6 +30,26 @@
 		<severity>0</severity>
 	</rule>
 
+	<!--
+		Socket I/O in opcache-fastcgi.php requires native PHP functions.
+		WP_Filesystem does not support socket communication.
+	-->
+	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_fclose">
+		<exclude-pattern>opcache-fastcgi.php</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_fread">
+		<exclude-pattern>opcache-fastcgi.php</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_fwrite">
+		<exclude-pattern>opcache-fastcgi.php</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents">
+		<exclude-pattern>opcache-fastcgi.php</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.NoSilencedErrors.Discouraged">
+		<exclude-pattern>opcache-fastcgi.php</exclude-pattern>
+	</rule>
+
 	<!-- Require minimum WP version for deprecated function checks -->
 	<config name="minimum_wp_version" value="5.0"/>
 </ruleset>

@@ -182,6 +182,28 @@ add_action(
 				'permission_callback' => '__return_true',
 			)
 		);
+
+		// FastCGI reset test - creates cachetool.yml and tests direct FastCGI.
+		register_rest_route(
+			'test/v1',
+			'/fastcgi-test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'opcache_test_fastcgi',
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		// WP-CLI command test.
+		register_rest_route(
+			'test/v1',
+			'/wpcli',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'opcache_test_wpcli_command',
+				'permission_callback' => '__return_true',
+			)
+		);
 	}
 );
 
@@ -852,3 +874,234 @@ function opcache_test_pure_php( $request ) {
 	);
 }
 
+/**
+ * Test FastCGI reset functionality.
+ *
+ * Tests the direct FastCGI client by creating a cachetool.yml
+ * and calling the reset function.
+ *
+ * @param WP_REST_Request $request The request object.
+ * @return WP_REST_Response
+ */
+function opcache_test_fastcgi( $request ) {
+	$action = $request->get_param( 'action' );
+
+	if ( 'setup_cachetool_yml' === $action ) {
+		// Create cachetool.yml in WordPress root.
+		$socket = $request->get_param( 'socket' );
+		if ( ! $socket ) {
+			// Default to PHP-FPM socket in Docker environment.
+			$socket = '/run/php-fpm.sock';
+		}
+
+		$yml_content = "adapter: fastcgi\nfastcgi: {$socket}\n";
+		$yml_path    = ABSPATH . '.cachetool.yml';
+
+		$result = file_put_contents( $yml_path, $yml_content );
+
+		return new WP_REST_Response(
+			array(
+				'success'  => false !== $result,
+				'action'   => 'setup_cachetool_yml',
+				'yml_path' => $yml_path,
+				'socket'   => $socket,
+			),
+			200
+		);
+	}
+
+	if ( 'cleanup_cachetool_yml' === $action ) {
+		// Remove cachetool.yml.
+		$yml_path = ABSPATH . '.cachetool.yml';
+		if ( file_exists( $yml_path ) ) {
+			unlink( $yml_path );
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'action'  => 'cleanup_cachetool_yml',
+			),
+			200
+		);
+	}
+
+	if ( 'test_yml_parsing' === $action ) {
+		// Test the YAML parsing function.
+		$plugin_path = WP_PLUGIN_DIR . '/opcache-reset/opcache-fastcgi.php';
+
+		if ( ! file_exists( $plugin_path ) ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'error'   => 'opcache-fastcgi.php not found',
+				),
+				500
+			);
+		}
+
+		require_once $plugin_path;
+
+		$config_path = gps_find_cachetool_config();
+		$socket      = null;
+
+		if ( $config_path ) {
+			$socket = gps_parse_cachetool_yml( $config_path );
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success'     => true,
+				'action'      => 'test_yml_parsing',
+				'config_path' => $config_path,
+				'socket'      => $socket,
+			),
+			200
+		);
+	}
+
+	if ( 'test_opcache_reset_works' === $action ) {
+		// Test that opcache_reset() works in this environment.
+		// This validates the FastCGI approach will work.
+
+		// Get stats before.
+		$before_stats = null;
+		if ( function_exists( 'opcache_get_status' ) ) {
+			$status       = opcache_get_status( false );
+			$before_stats = $status['opcache_statistics'] ?? null;
+		}
+
+		// Call opcache_reset().
+		$result = 'NO_OPCACHE';
+		if ( function_exists( 'opcache_reset' ) ) {
+			opcache_reset();
+			$result = 'OK';
+		}
+
+		// Get stats after.
+		$after_stats = null;
+		if ( function_exists( 'opcache_get_status' ) ) {
+			$status      = opcache_get_status( false );
+			$after_stats = $status['opcache_statistics'] ?? null;
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success'      => 'OK' === $result,
+				'action'       => 'test_opcache_reset_works',
+				'response'     => $result,
+				'before_stats' => $before_stats,
+				'after_stats'  => $after_stats,
+			),
+			200
+		);
+	}
+
+	if ( 'test_fastcgi_client_e2e' === $action ) {
+		// End-to-end test of the FastCGI client.
+		// This tests the actual FastCGI connection to PHP-FPM.
+		$socket = $request->get_param( 'socket' );
+		if ( ! $socket ) {
+			$socket = '/run/php/php-fpm.sock';
+		}
+
+		// Check if socket exists.
+		if ( ! file_exists( $socket ) ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'action'  => 'test_fastcgi_client_e2e',
+					'error'   => 'Socket not found: ' . $socket,
+				),
+				200
+			);
+		}
+
+		// Load the FastCGI client.
+		$fastcgi_file = WP_PLUGIN_DIR . '/opcache-reset/opcache-fastcgi.php';
+		if ( ! file_exists( $fastcgi_file ) ) {
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'action'  => 'test_fastcgi_client_e2e',
+					'error'   => 'FastCGI client not found: ' . $fastcgi_file,
+				),
+				200
+			);
+		}
+
+		require_once $fastcgi_file;
+
+		// Call the FastCGI reset function directly.
+		$result = gps_fastcgi_opcache_reset( $socket );
+
+		return new WP_REST_Response(
+			array(
+				'success' => $result,
+				'action'  => 'test_fastcgi_client_e2e',
+				'socket'  => $socket,
+				'message' => $result ? 'FastCGI request succeeded' : 'FastCGI request failed',
+			),
+			200
+		);
+	}
+
+	return new WP_REST_Response(
+		array(
+			'success' => false,
+			'error'   => 'Unknown action. Use: setup_cachetool_yml, cleanup_cachetool_yml, test_yml_parsing, test_opcache_reset_works, test_fastcgi_client_e2e.',
+		),
+		400
+	);
+}
+
+/**
+ * Run WP-CLI commands for testing.
+ *
+ * @param WP_REST_Request $request The request object.
+ * @return WP_REST_Response
+ */
+function opcache_test_wpcli_command( $request ) {
+	$command = $request->get_param( 'command' );
+
+	if ( empty( $command ) ) {
+		return new WP_REST_Response(
+			array(
+				'success' => false,
+				'error'   => 'Command parameter required',
+			),
+			400
+		);
+	}
+
+	// Only allow opcache commands for security.
+	if ( strpos( $command, 'opcache' ) !== 0 ) {
+		return new WP_REST_Response(
+			array(
+				'success' => false,
+				'error'   => 'Only opcache commands are allowed',
+			),
+			403
+		);
+	}
+
+	// Build the full WP-CLI command.
+	$full_command = sprintf(
+		'wp %s --path=/var/www/html --allow-root 2>&1',
+		escapeshellcmd( $command )
+	);
+
+	$output    = array();
+	$exit_code = 0;
+	exec( $full_command, $output, $exit_code );
+
+	return new WP_REST_Response(
+		array(
+			'success'   => 0 === $exit_code,
+			'command'   => 'wp ' . $command,
+			'exit_code' => $exit_code,
+			'output'    => implode( "\n", $output ),
+		),
+		200
+	);
+}

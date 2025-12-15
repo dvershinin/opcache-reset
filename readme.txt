@@ -1,9 +1,9 @@
 === OPcache Reset ===
-Tags: PHP, Zend, OPcache, cache
+Tags: PHP, Zend, OPcache, cache, WP-CLI
 Requires at least: 5.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 License: GPLv2 or later
 Donate link: https://github.com/sponsors/dvershinin
 Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
@@ -15,14 +15,47 @@ Automatic OPcache reset for WordPress. Invalidates both in-memory and file-based
 This plugin clears OPcache after updating WordPress core, themes, and files.
 Unlike other plugins, it is also compatible with [WordPress updates made by Linux cron](https://www.getpagespeed.com/server-setup/performance-friendly-wordpress-updates).
 
-### Notice
-* **Important**: To use this plugin, check the following.
-	1. **PHP OPcache** is enabled and configured properly.
-	2. If not, please see [this post](https://www.getpagespeed.com/server-setup/php/zend-opcache) and enable/install OPcache.
-	3. The [cachetool](https://github.com/gordalina/cachetool) utility must be configured in order for OPCache to be cleared by this plugin. It must be in your `PATH` and named `cachetool`.
-	4. The "which" utility (typically preinstalled), thus a Linux OS
+### Features
+
+* Automatic OPcache reset after plugin/theme/core updates
+* Clears both memory-based and file-based OPcache
+* Works with cron-based WordPress updates (CLI context)
+* WP-CLI commands for manual OPcache management
+* Zero external dependencies (optional cachetool support)
+
+### Configuration
+
+The plugin works automatically for web-based updates. For CLI-based updates (cron, WP-CLI), configure your PHP-FPM socket:
+
+**Option 1: Create `.cachetool.yml` in your WordPress root:**
+
+    adapter: fastcgi
+    fastcgi: /run/php-fpm/www.sock
+
+**Option 2: Use cachetool binary** (if installed in PATH)
+
+### WP-CLI Commands
+
+Reset OPcache from the command line:
+
+    wp opcache reset
+
+Show OPcache status and statistics:
+
+    wp opcache status
+
+Output status as JSON:
+
+    wp opcache status --format=json
 
 == Changelog ==
+
+= 2.4.0 =
+* Added WP-CLI commands: `wp opcache reset` and `wp opcache status`
+* Added direct FastCGI communication (no cachetool dependency required)
+* Added support for cachetool.yml configuration format
+* Added end-to-end FastCGI testing
+* Improved test coverage (34 tests)
 
 = 2.3.0 =
 * Added comprehensive Docker-based integration test suite (27 tests)
