@@ -1,7 +1,7 @@
 === OPcache Reset ===
 Tags: PHP, Zend, OPcache, cache, WP-CLI
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 6.3
 Requires PHP: 7.4
 Stable tag: 2.4.0
 License: GPLv2 or later
