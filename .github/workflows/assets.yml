@@ -6,6 +6,7 @@ on:
     paths:
       - 'readme.txt'
       - '.wordpress-org/**'
+  workflow_dispatch:
 concurrency:
   group: wordpress-svn-deploy
   cancel-in-progress: false
