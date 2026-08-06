@@ -2,7 +2,7 @@
 
 This docker setup spins up:
 - MariaDB
-- WordPress (Apache, PHP 8.2 with OPcache enabled + cachetool)
+- WordPress (Apache, PHP 8.2 with OPcache enabled)
 - WP-CLI
 - Python pytest tester
 
@@ -33,7 +33,7 @@ TEST_PORT=8888 make tests
 
 ## Notes
 - OPcache is configured with file cache at `/tmp/opcache` for testing file cache clearing.
-- The `cachetool` utility is installed for testing memory-based OPcache reset.
+- A dedicated PHP-FPM service verifies the plugin's direct FastCGI reset path.
 - The plugin hooks into `upgrader_process_complete` to reset OPcache after WordPress updates.
 
 ## Tests
@@ -65,4 +65,3 @@ bash setup.sh
 docker compose run --rm tester -q
 docker compose down -v
 ```
-

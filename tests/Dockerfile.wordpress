@@ -1,9 +1,5 @@
-# WordPress with OPcache enabled, cachetool and wp-cli installed
+# WordPress with OPcache enabled and wp-cli installed
 FROM wordpress:6.6-php8.2-apache
-
-# Install cachetool for OPcache management
-RUN curl -sLo /usr/local/bin/cachetool https://github.com/gordalina/cachetool/releases/latest/download/cachetool.phar \
-    && chmod +x /usr/local/bin/cachetool
 
 # Install wp-cli for plugin management from CLI
 RUN curl -sLo /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
@@ -36,7 +32,4 @@ RUN echo '<IfModule mpm_prefork_module>\n\
     MaxRequestWorkers 1\n\
     MaxConnectionsPerChild 0\n\
 </IfModule>' > /etc/apache2/mods-available/mpm_prefork.conf
-
-# Ensure cachetool can be found in PATH
-ENV PATH="/usr/local/bin:${PATH}"
 

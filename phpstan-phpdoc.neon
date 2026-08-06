@@ -41,8 +41,4 @@ parameters:
         # --- Out of scope: symbols not in the WP stubs / plugin-internal ---
         - '#Constant [A-Z_]+ not found#'
         - '#Class (WP_CLI[a-zA-Z_]*) not found#'
-        # --- shell_exec() is string|false|null; the reset ladder null-checks by
-        #     truthiness rather than by type, which level 5 flags as a type
-        #     mismatch. Deliberate: see CLAUDE.md "The reset ladder".
-        - '#expects string, string\|false\|null given#'
     reportUnmatchedIgnoredErrors: false

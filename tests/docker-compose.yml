@@ -58,6 +58,46 @@ services:
     networks:
       - opcache_net
 
+  # Same installed WordPress site, but with shell_exec disabled exactly as on
+  # the hosting environment reported in the WordPress.org support thread.
+  wordpress-no-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile.wordpress
+    command: >
+      sh -c "
+        echo 'disable_functions=shell_exec' > /usr/local/etc/php/conf.d/disable-shell-exec.ini &&
+        apache2-foreground
+      "
+    depends_on:
+      wordpress:
+        condition: service_healthy
+      php-fpm:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'development');
+        define('DISABLE_WP_CRON', true);
+        define('WP_DEBUG_DISPLAY', false);
+    volumes:
+      - wp_data:/var/www/html
+      - ../:/var/www/html/wp-content/plugins/opcache-reset
+      - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
+      - ./fixtures:/workspace/tests/fixtures
+      - fpm_socket:/run/php
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/wp-login.php >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - opcache_net
+
   wpcli:
     image: wordpress:cli-php8.2
     depends_on:
@@ -92,6 +132,8 @@ services:
     depends_on:
       wordpress:
         condition: service_healthy
+      wordpress-no-shell:
+        condition: service_healthy
     user: "33:33"
     working_dir: /workspace
     volumes:
@@ -102,6 +144,7 @@ services:
     environment:
       WP_URL: http://wordpress
       WP_BACKEND_URL: http://wordpress
+      WP_NO_SHELL_URL: http://wordpress-no-shell
     networks:
       - opcache_net
 
@@ -153,4 +196,3 @@ services:
 volumes:
   wp_data:
   fpm_socket:
-

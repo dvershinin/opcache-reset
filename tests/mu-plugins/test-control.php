@@ -73,6 +73,17 @@ add_action(
 			)
 		);
 
+		// Manage a marker used to verify file-cache clearing and recreation.
+		register_rest_route(
+			'test/v1',
+			'/file-cache-fixture',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'opcache_test_file_cache_fixture',
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// Simulate plugin deletion (triggers deleted_plugin hook).
 		register_rest_route(
 			'test/v1',
@@ -214,12 +225,13 @@ add_action(
  */
 function opcache_test_get_status() {
 	$status = array(
-		'extension_loaded' => extension_loaded( 'Zend OPcache' ),
-		'enabled'          => ! empty( ini_get( 'opcache.enable' ) ),
-		'cli_enabled'      => ! empty( ini_get( 'opcache.enable_cli' ) ),
-		'file_cache'       => ini_get( 'opcache.file_cache' ),
-		'file_cache_only'  => ! empty( ini_get( 'opcache.file_cache_only' ) ),
-		'restrict_api'     => ini_get( 'opcache.restrict_api' ),
+		'extension_loaded'     => extension_loaded( 'Zend OPcache' ),
+		'enabled'              => ! empty( ini_get( 'opcache.enable' ) ),
+		'cli_enabled'          => ! empty( ini_get( 'opcache.enable_cli' ) ),
+		'shell_exec_available' => function_exists( 'shell_exec' ),
+		'file_cache'           => ini_get( 'opcache.file_cache' ),
+		'file_cache_only'      => ! empty( ini_get( 'opcache.file_cache_only' ) ),
+		'restrict_api'         => ini_get( 'opcache.restrict_api' ),
 	);
 
 	if ( function_exists( 'opcache_get_status' ) ) {
@@ -365,6 +377,33 @@ function opcache_test_file_cache_info() {
 	}
 
 	return new WP_REST_Response( $info, 200 );
+}
+
+/**
+ * Create or inspect a marker inside the configured OPcache file cache.
+ *
+ * @param WP_REST_Request $request The request object.
+ * @return WP_REST_Response
+ */
+function opcache_test_file_cache_fixture( $request ) {
+	$file_cache_dir = ini_get( 'opcache.file_cache' );
+	$fixture_dir    = $file_cache_dir . '/gps-test/nested';
+	$marker         = $fixture_dir . '/marker';
+
+	if ( 'setup' === $request->get_param( 'action' ) ) {
+		if ( ! is_dir( $fixture_dir ) ) {
+			mkdir( $fixture_dir, 0777, true );
+		}
+		file_put_contents( $marker, 'marker' );
+	}
+
+	return new WP_REST_Response(
+		array(
+			'cache_dir_exists' => is_dir( $file_cache_dir ),
+			'marker_exists'    => file_exists( $marker ),
+		),
+		200
+	);
 }
 
 /**
@@ -677,7 +716,7 @@ function opcache_test_dummy_plugin_activate_wpcli() {
 
 /**
  * Delete the dummy plugin via wp-cli.
- * This runs in CLI context and tests file-based OPcache + cachetool clearing.
+ * This runs in CLI context and tests native file-cache clearing.
  *
  * @return WP_REST_Response
  */
@@ -699,7 +738,7 @@ function opcache_test_dummy_plugin_delete_wpcli() {
 
 	// Run wp-cli to delete the plugin (runs in CLI context).
 	// This triggers the deleted_plugin hook in CLI context,
-	// which tests the file-based OPcache clearing + cachetool.
+	// which tests native file-cache clearing.
 	$output = shell_exec( "wp plugin delete dummy-plugin --path=/var/www/html --allow-root 2>&1" );
 
 	$deleted = ! file_exists( $plugin_dir );
@@ -943,10 +982,12 @@ function opcache_test_fastcgi( $request ) {
 		require_once $plugin_path;
 
 		$config_path = gps_find_cachetool_config();
+		$config      = null;
 		$socket      = null;
 
 		if ( $config_path ) {
-			$socket = gps_parse_cachetool_yml( $config_path );
+			$config = gps_parse_cachetool_yml( $config_path );
+			$socket = $config['fastcgi'] ?? null;
 		}
 
 		return new WP_REST_Response(

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
 WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", WP_URL)
+WP_NO_SHELL_URL = os.environ.get("WP_NO_SHELL_URL")
 API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
 DUMMY_API = f"{WP_BACKEND_URL}/wp-json/dummy/v1"  # Dummy plugin's REST API
 _parsed = urlparse(WP_URL)
@@ -126,6 +127,45 @@ def test_opcache_reset_returns_before_after_stats():
     assert data["success"] is True
     assert "before_stats" in data
     assert "after_stats" in data
+
+
+def test_opcache_reset_works_when_shell_exec_is_disabled():
+    """Regression test for hosts that disable PHP's shell_exec function."""
+    if not WP_NO_SHELL_URL:
+        import pytest
+        pytest.skip("shell_exec-disabled WordPress service is not configured")
+
+    api_base = f"{WP_NO_SHELL_URL}/wp-json/test/v1"
+
+    status = requests.get(f"{api_base}/opcache-status", headers=_host_headers())
+    status.raise_for_status()
+    assert status.json()["shell_exec_available"] is False
+
+    fixture = requests.post(
+        f"{api_base}/file-cache-fixture",
+        json={"action": "setup"},
+        headers=_host_headers(),
+    )
+    fixture.raise_for_status()
+    assert fixture.json()["marker_exists"] is True
+
+    reset = requests.post(f"{api_base}/simulate-update", json={}, headers=_host_headers())
+    reset.raise_for_status()
+    data = reset.json()
+
+    assert data["success"] is True
+    assert data["hook_fired"] == "upgrader_process_complete"
+
+    fixture = requests.post(
+        f"{api_base}/file-cache-fixture",
+        json={"action": "status"},
+        headers=_host_headers(),
+    )
+    fixture.raise_for_status()
+    assert fixture.json() == {
+        "cache_dir_exists": True,
+        "marker_exists": False,
+    }
 
 
 # =============================================================================
@@ -452,11 +492,11 @@ def test_real_plugin_uninstall_via_php():
 
 
 def test_real_plugin_uninstall_via_wpcli():
-    """Test uninstalling via wp-cli - tests file-based OPcache + cachetool.
+    """Test uninstalling via wp-cli and native file-cache clearing.
     
     This runs wp-cli inside the WordPress container (CLI context),
     which triggers the deleted_plugin hook and calls gps_opcache_reset().
-    This tests the file-based OPcache clearing + cachetool path.
+    The direct FastCGI client is covered separately against a real FPM socket.
     """
     _cleanup_dummy_plugin()
 

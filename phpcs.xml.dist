@@ -23,16 +23,26 @@
 		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
 	</rule>
 
-	<!-- shell_exec is intentionally used for cachetool and file cache management -->
-	<rule ref="WordPress.PHP.DiscouragedPHPFunctions.system_calls_shell_exec">
-		<severity>0</severity>
-	</rule>
-
-	<!-- is_writable is intentionally used for low-level file cache operations -->
+	<!--
+		Native filesystem calls are required for the OPcache file-cache directory.
+		It lives outside WordPress, and WP_Filesystem may require credentials or
+		use a remote transport that cannot operate on this local PHP cache.
+	-->
 	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_is_writable">
 		<severity>0</severity>
 	</rule>
-
+	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_rmdir">
+		<severity>0</severity>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.file_system_operations_mkdir">
+		<severity>0</severity>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.unlink_unlink">
+		<severity>0</severity>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions.rename_rename">
+		<severity>0</severity>
+	</rule>
 	<!--
 		Socket I/O in opcache-fastcgi.php requires native PHP functions.
 		WP_Filesystem does not support socket communication.
@@ -56,4 +66,3 @@
 	<!-- Require minimum WP version for deprecated function checks -->
 	<config name="minimum_wp_version" value="5.0"/>
 </ruleset>
-

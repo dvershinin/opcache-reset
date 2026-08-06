@@ -24,6 +24,7 @@ define( 'GPS_FCGI_PARAMS', 4 );
 define( 'GPS_FCGI_STDIN', 5 );
 define( 'GPS_FCGI_STDOUT', 6 );
 define( 'GPS_FCGI_RESPONDER', 1 );
+define( 'GPS_FCGI_REQUEST_COMPLETE', 0 );
 
 /**
  * Build a FastCGI record.
@@ -76,22 +77,41 @@ function gps_fcgi_build_nvpair( $name, $value ) {
 /**
  * Find cachetool configuration file.
  *
- * Searches in WordPress root, then home directory.
+ * Searches from the WordPress root and current directory upward, then checks
+ * the home directory and system-wide CacheTool locations.
  *
  * @return string|null Path to config file or null if not found.
  */
 function gps_find_cachetool_config() {
-	$locations = array(
-		ABSPATH . '.cachetool.yml',
-		ABSPATH . 'cachetool.yml',
-	);
+	$locations = array();
+	$roots     = array( ABSPATH, getcwd() );
+
+	foreach ( $roots as $root ) {
+		if ( ! $root ) {
+			continue;
+		}
+
+		$directory = realpath( $root );
+		while ( $directory ) {
+			$locations[] = $directory . '/.cachetool.yml';
+			$locations[] = $directory . '/.cachetool.yaml';
+			$parent      = dirname( $directory );
+			if ( $parent === $directory ) {
+				break;
+			}
+			$directory = $parent;
+		}
+	}
 
 	$home = getenv( 'HOME' );
 	if ( $home ) {
 		$locations[] = $home . '/.cachetool.yml';
+		$locations[] = $home . '/.cachetool.yaml';
 	}
+	$locations[] = '/etc/cachetool.yml';
+	$locations[] = '/etc/cachetool.yaml';
 
-	foreach ( $locations as $path ) {
+	foreach ( array_unique( $locations ) as $path ) {
 		if ( file_exists( $path ) && is_readable( $path ) ) {
 			return $path;
 		}
@@ -103,10 +123,10 @@ function gps_find_cachetool_config() {
 /**
  * Parse cachetool.yml configuration file.
  *
- * Simple YAML parser for the adapter and fastcgi keys.
+ * Simple YAML parser for the adapter, fastcgi, and fastcgiChroot keys.
  *
  * @param string $path Path to the config file.
- * @return string|null Socket path/address or null if invalid.
+ * @return array{fastcgi: string, fastcgi_chroot: string|null}|null FastCGI configuration or null if invalid.
  */
 function gps_parse_cachetool_yml( $path ) {
 	$contents = file_get_contents( $path );
@@ -114,8 +134,9 @@ function gps_parse_cachetool_yml( $path ) {
 		return null;
 	}
 
-	$adapter = null;
-	$fastcgi = null;
+	$adapter        = 'fastcgi';
+	$fastcgi        = null;
+	$fastcgi_chroot = null;
 
 	$lines = explode( "\n", $contents );
 	foreach ( $lines as $line ) {
@@ -132,16 +153,21 @@ function gps_parse_cachetool_yml( $path ) {
 			$value = trim( $matches[2], " \t\n\r\0\x0B\"'" );
 
 			if ( 'adapter' === $key ) {
-				$adapter = $value;
+				$adapter = strtolower( $value );
 			} elseif ( 'fastcgi' === $key ) {
 				$fastcgi = $value;
+			} elseif ( 'fastcgichroot' === $key ) {
+				$fastcgi_chroot = rtrim( $value, '/\\' );
 			}
 		}
 	}
 
 	// Only return socket if adapter is fastcgi.
 	if ( 'fastcgi' === $adapter && $fastcgi ) {
-		return $fastcgi;
+		return array(
+			'fastcgi'        => $fastcgi,
+			'fastcgi_chroot' => $fastcgi_chroot,
+		);
 	}
 
 	return null;
@@ -158,10 +184,11 @@ function gps_parse_cachetool_yml( $path ) {
  * direct FastCGI connection. nginx/Apache never forward arbitrary
  * custom CGI params - only HTTP_* headers from HTTP requests.
  *
- * @param string $socket Socket path (Unix) or address (TCP host:port).
+ * @param string      $socket Socket path (Unix) or address (TCP host:port).
+ * @param string|null $chroot Optional PHP-FPM chroot prefix to remove from the script path.
  * @return bool True on success, false on failure.
  */
-function gps_fastcgi_opcache_reset( $socket ) {
+function gps_fastcgi_opcache_reset( $socket, $chroot = null ) {
 	// Determine connection string.
 	if ( strpos( $socket, '/' ) === 0 ) {
 		// Unix socket.
@@ -179,9 +206,18 @@ function gps_fastcgi_opcache_reset( $socket ) {
 	if ( ! $fp ) {
 		return false;
 	}
+	stream_set_timeout( $fp, 5 );
 
 	// Use the plugin's own file as the script.
 	$script_filename = __DIR__ . '/opcache-reset.php';
+	if ( $chroot ) {
+		$chroot = rtrim( $chroot, '/\\' );
+		if ( strpos( $script_filename, $chroot . '/' ) !== 0 ) {
+			fclose( $fp );
+			return false;
+		}
+		$script_filename = substr( $script_filename, strlen( $chroot ) );
+	}
 
 	// Build the FastCGI BEGIN_REQUEST record.
 	$begin_request = pack( 'nCCCCCC', GPS_FCGI_RESPONDER, 0, 0, 0, 0, 0, 0, 0 );
@@ -212,34 +248,69 @@ function gps_fastcgi_opcache_reset( $socket ) {
 	$request .= gps_fcgi_build_record( GPS_FCGI_PARAMS, '' ); // Empty params to end.
 	$request .= gps_fcgi_build_record( GPS_FCGI_STDIN, '' );  // Empty stdin.
 
-	// Send request.
-	fwrite( $fp, $request );
+	// Send the complete request, accounting for partial socket writes.
+	$request_length = strlen( $request );
+	$bytes_written  = 0;
+	while ( $bytes_written < $request_length ) {
+		$written = fwrite( $fp, substr( $request, $bytes_written ) );
+		if ( false === $written || 0 === $written ) {
+			fclose( $fp );
+			return false;
+		}
+		$bytes_written += $written;
+	}
 
-	// Read response.
-	$response        = '';
-	$response_length = 0;
+	// Parse FastCGI records until END_REQUEST and verify the handler body.
+	$buffer = '';
+	$stdout = '';
 	while ( ! feof( $fp ) ) {
 		$data = fread( $fp, 8192 );
 		if ( false === $data ) {
 			break;
 		}
-		$response       .= $data;
-		$response_length = strlen( $response );
+		if ( '' === $data ) {
+			$metadata = stream_get_meta_data( $fp );
+			if ( ! empty( $metadata['timed_out'] ) ) {
+				break;
+			}
+			continue;
+		}
 
-		// Check if we received the FastCGI END_REQUEST record.
-		if ( $response_length >= 8 ) {
-			$pos = 0;
-			while ( $pos + 8 <= $response_length ) {
-				$header = unpack( 'Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', substr( $response, $pos, 8 ) );
-				if ( GPS_FCGI_END_REQUEST === $header['type'] ) {
-					fclose( $fp );
-					return true;
+		$buffer .= $data;
+
+		$buffer_length = strlen( $buffer );
+		while ( $buffer_length >= 8 ) {
+			$header = unpack( 'Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', substr( $buffer, 0, 8 ) );
+			if ( ! is_array( $header ) || GPS_FCGI_VERSION_1 !== $header['version'] ) {
+				fclose( $fp );
+				return false;
+			}
+
+			$record_length = 8 + $header['contentLength'] + $header['paddingLength'];
+			if ( strlen( $buffer ) < $record_length ) {
+				break;
+			}
+
+			$content       = substr( $buffer, 8, $header['contentLength'] );
+			$buffer        = substr( $buffer, $record_length );
+			$buffer_length = strlen( $buffer );
+
+			if ( GPS_FCGI_STDOUT === $header['type'] ) {
+				$stdout .= $content;
+			} elseif ( GPS_FCGI_END_REQUEST === $header['type'] ) {
+				$end_status = unpack( 'Napp_status/Cprotocol_status', $content );
+				fclose( $fp );
+				if ( ! is_array( $end_status ) || 0 !== $end_status['app_status'] || GPS_FCGI_REQUEST_COMPLETE !== $end_status['protocol_status'] ) {
+					return false;
 				}
-				$pos += 8 + $header['contentLength'] + $header['paddingLength'];
+
+				$body_separator = strpos( $stdout, "\r\n\r\n" );
+				$body           = false === $body_separator ? $stdout : substr( $stdout, $body_separator + 4 );
+				return 'OK' === trim( $body );
 			}
 		}
 	}
 
 	fclose( $fp );
-	return true;
+	return false;
 }

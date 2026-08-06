@@ -18,8 +18,12 @@
 // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Checking existence only.
 if ( isset( $_SERVER['GPS_OPCACHE_RESET_INTERNAL'] ) && '1' === $_SERVER['GPS_OPCACHE_RESET_INTERNAL'] ) {
 	if ( function_exists( 'opcache_reset' ) ) {
-		opcache_reset();
-		echo 'OK';
+		$reset = opcache_reset();
+		if ( ! $reset && function_exists( 'opcache_get_status' ) ) {
+			$opcache_status = opcache_get_status( false );
+			$reset          = is_array( $opcache_status ) && ( ! empty( $opcache_status['restart_pending'] ) || ! empty( $opcache_status['restart_in_progress'] ) );
+		}
+		echo $reset ? 'OK' : 'RESET_FAILED';
 	} else {
 		echo 'NO_OPCACHE';
 	}
@@ -45,6 +49,46 @@ if ( is_admin() ) {
 // Load WP-CLI commands.
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once __DIR__ . '/opcache-cli.php';
+}
+
+/**
+ * Recursively remove an OPcache file-cache directory.
+ *
+ * The cache lives outside the WordPress filesystem and must be managed without
+ * WP_Filesystem so resets also work when shell functions are disabled.
+ *
+ * @param string $directory Directory to remove.
+ * @return bool Whether the directory was removed or no longer exists.
+ */
+function gps_opcache_remove_directory( $directory ) {
+	if ( ! is_dir( $directory ) ) {
+		return ! file_exists( $directory );
+	}
+
+	try {
+		$iterator = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $directory, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::CHILD_FIRST
+		);
+	} catch ( UnexpectedValueException $exception ) {
+		return false;
+	}
+
+	foreach ( $iterator as $item ) {
+		$path = $item->getPathname();
+		if ( $item->isDir() && ! $item->isLink() ) {
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Best-effort cleanup; the result is checked below.
+			if ( ! @rmdir( $path ) && is_dir( $path ) ) {
+				return false;
+			}
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Best-effort cleanup; the result is checked below.
+		} elseif ( ! @unlink( $path ) && file_exists( $path ) ) {
+			return false;
+		}
+	}
+
+	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Best-effort cleanup; the result is checked below.
+	return @rmdir( $directory ) || ! is_dir( $directory );
 }
 
 /**
@@ -79,9 +123,19 @@ function gps_opcache_reset() {
 		}
 	}
 
-	if ( $file_cache_dir && file_exists( $file_cache_dir ) ) {
+	$retired_cache_dir = $file_cache_dir ? "{$file_cache_dir}.rm" : null;
+	if ( $retired_cache_dir && file_exists( $retired_cache_dir ) ) {
+		gps_opcache_remove_directory( $retired_cache_dir );
+	}
+
+	if ( $file_cache_dir && $retired_cache_dir && file_exists( $file_cache_dir ) ) {
 		// move it out of the way to avoid race conditions
-		shell_exec( "mv {$file_cache_dir} {$file_cache_dir}.rm" );
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Cross-device failure has an in-place fallback below.
+		$cache_rotated = @rename( $file_cache_dir, $retired_cache_dir );
+		if ( ! $cache_rotated ) {
+			// Overlay/container filesystems can reject directory renames with EXDEV.
+			gps_opcache_remove_directory( $file_cache_dir );
+		}
 	}
 
 	// We are in PHP-FPM context and not file cache only
@@ -90,38 +144,24 @@ function gps_opcache_reset() {
 	}
 
 	if ( $file_cache_dir ) {
-		if ( file_exists( "{$file_cache_dir}.rm" ) ) {
-			shell_exec( "rm -rf {$file_cache_dir}.rm" );
+		if ( $retired_cache_dir && file_exists( $retired_cache_dir ) ) {
+			gps_opcache_remove_directory( $retired_cache_dir );
 		}
 		// make sure OPcache directory is re-created
-		shell_exec( "mkdir -p {$file_cache_dir}" );
+		if ( ! file_exists( $file_cache_dir ) ) {
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Another worker may recreate it concurrently.
+			@mkdir( $file_cache_dir, 0777, true );
+		}
 	}
 
-	// Irrespective of the context, we should attempt to clear the memory-based OPCache, because this script may be called from CLI
-	// and can't be aware of whether PHP-FPM is running with file_cache_only => On
-	// Since the script may be called via cron or PHP-FPM with clear_env settings, the PATH may not be set properly, so we need to set it
-	$username    = getenv( 'USER' );
-	$path        = "/home/{$username}/.local/bin:/usr/bin:/bin";
-	$system_path = getenv( 'PATH' );
-	if ( $system_path ) {
-		$path .= ':' . $system_path;
-	}
-
-	// Try cachetool binary first.
-	$cachetool = trim( shell_exec( "PATH={$path} which cachetool 2>/dev/null" ) );
-	if ( $cachetool ) {
-		$cmd = 'php -d opcache.enable_cli=0 -d opcache.file_cache_only=0 -d opcache.file_cache=/tmp $(which cachetool) opcache:reset';
-		shell_exec( "PATH={$path} {$cmd} 2>&1" );
-		return;
-	}
-
-	// Fallback: direct FastCGI if cachetool.yml exists.
+	// A CLI process cannot reset PHP-FPM's shared-memory cache directly, so send
+	// the reset to FPM over FastCGI using the socket from .cachetool.yml.
 	require_once __DIR__ . '/opcache-fastcgi.php';
 	$config_path = gps_find_cachetool_config();
 	if ( $config_path ) {
-		$socket = gps_parse_cachetool_yml( $config_path );
-		if ( $socket ) {
-			gps_fastcgi_opcache_reset( $socket );
+		$config = gps_parse_cachetool_yml( $config_path );
+		if ( $config ) {
+			gps_fastcgi_opcache_reset( $config['fastcgi'], $config['fastcgi_chroot'] );
 		}
 	}
 }
