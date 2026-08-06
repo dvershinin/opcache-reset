@@ -3,7 +3,7 @@
  * Plugin Name: OPcache Reset
  * Plugin URI: http://wordpress.org/plugins/opcache-reset/
  * Description: Automatic reset of OPcache
- * Version: 2.4.0
+ * Version: 2.4.1
  * Requires at least: 5.0
  * Requires PHP: 7.4
  * Author: Danila Vershinin

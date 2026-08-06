@@ -3,7 +3,7 @@ Tags: PHP, Zend, OPcache, cache, WP-CLI
 Requires at least: 5.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 License: GPLv2 or later
 Donate link: https://github.com/sponsors/dvershinin
 Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
@@ -21,18 +21,16 @@ Unlike other plugins, it is also compatible with [WordPress updates made by Linu
 * Clears both memory-based and file-based OPcache
 * Works with cron-based WordPress updates (CLI context)
 * WP-CLI commands for manual OPcache management
-* Zero external dependencies (optional cachetool support)
+* Zero external dependencies and no shell commands
 
 ### Configuration
 
 The plugin works automatically for web-based updates. For CLI-based updates (cron, WP-CLI), configure your PHP-FPM socket:
 
-**Option 1: Create `.cachetool.yml` in your WordPress root:**
+Create a CacheTool-compatible `.cachetool.yml` in your WordPress root:
 
     adapter: fastcgi
     fastcgi: /run/php-fpm/www.sock
-
-**Option 2: Use cachetool binary** (if installed in PATH)
 
 ### WP-CLI Commands
 
@@ -49,6 +47,14 @@ Output status as JSON:
     wp opcache status --format=json
 
 == Changelog ==
+
+= 2.4.1 =
+* Reset PHP-FPM OPcache from cron and WP-CLI without `shell_exec` or a CacheTool binary
+* Replace shell-based file cache cleanup with native PHP filesystem operations
+* Improve FastCGI configuration, response validation, and error handling
+* Add direct-access protection and prefix internal functions and constants
+* Exclude development-only hidden files from release packages
+* Add disabled-`shell_exec` regression coverage
 
 = 2.4.0 =
 * Added WP-CLI commands: `wp opcache reset` and `wp opcache status`
