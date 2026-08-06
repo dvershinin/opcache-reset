@@ -122,13 +122,24 @@ services:
     #
     # Deleting every `listen*` line and appending our own is robust to both the
     # old and new upstream layouts. zz-docker.conf sorts last, so these win.
+    #
+    # Use one `echo` per directive, NOT `printf '%s\n' a b c d`. In a folded YAML
+    # scalar the `\n` becomes a real newline, and Compose versions disagree on
+    # whether that newline then folds to a space: locally it survives, on the CI
+    # runner it folded, so the format string degraded to '%s ' and all four
+    # directives were appended as ONE space-separated line. FPM rejected it with
+    # "syntax error, unexpected '='" and exited 78. Separate echoes joined by &&
+    # are immune to the folding difference.
     command: >
       sh -c "
         docker-php-ext-enable opcache &&
         echo 'opcache.enable=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
         echo 'opcache.enable_cli=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
         sed -i '/^[[:space:]]*listen/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        printf '%s\n' 'listen = /run/php/php-fpm.sock' 'listen.owner = www-data' 'listen.group = www-data' 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen = /run/php/php-fpm.sock' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.owner = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.group = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        echo 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
         php-fpm
       "
     healthcheck:
