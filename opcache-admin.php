@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return string|null The distribution name or null if not found.
  */
-function get_linux_distro() {
+function gps_opcache_get_linux_distro() {
 	// Declare Linux distros (extensible list).
 	$distros = array(
 		'Arch'   => 'arch-release',
@@ -51,7 +51,7 @@ function get_linux_distro() {
 /**
  * Display success notice for OPcache invalidation.
  */
-function opcache_edit_success() {
+function gps_opcache_edit_success() {
 	?>
 	<style>.updated.notice { display: none; }</style>
 	<div class="notice notice-success is-dismissible">
@@ -63,7 +63,7 @@ function opcache_edit_success() {
 /**
  * Display warning notice when OPcache had nothing to invalidate.
  */
-function opcache_edit_warning() {
+function gps_opcache_edit_warning() {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce verified in calling function.
 	$file = isset( $_REQUEST['file'] ) ? sanitize_file_name( wp_unslash( $_REQUEST['file'] ) ) : '';
 	?>
@@ -84,25 +84,25 @@ function opcache_edit_warning() {
 /**
  * Hook into plugin editor to invalidate OPcache for edited files.
  */
-function opcache_plugin_editor() {
+function gps_opcache_plugin_editor() {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- This runs after WordPress core has already verified the nonce.
 	if ( isset( $_GET['a'] ) && isset( $_REQUEST['file'] ) ) {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$file = sanitize_file_name( wp_unslash( $_REQUEST['file'] ) );
 		// File was edited successfully and we know the filename.
 		if ( opcache_invalidate( WP_PLUGIN_DIR . '/' . $file ) ) {
-			add_action( 'admin_notices', 'opcache_edit_success', 999 );
+			add_action( 'admin_notices', 'gps_opcache_edit_success', 999 );
 		} else {
-			add_action( 'admin_notices', 'opcache_edit_warning', 999 );
+			add_action( 'admin_notices', 'gps_opcache_edit_warning', 999 );
 		}
 	}
 }
-add_action( 'load-plugin-editor.php', 'opcache_plugin_editor' );
+add_action( 'load-plugin-editor.php', 'gps_opcache_plugin_editor' );
 
 /**
  * Handle OPcache invalidation on admin init for file edits.
  */
-function opcache_admin_init() {
+function gps_opcache_admin_init() {
 	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotValidated
 	if ( isset( $_SERVER['REQUEST_METHOD'] ) && 'POST' === $_SERVER['REQUEST_METHOD'] && ( current_user_can( 'edit_themes' ) || current_user_can( 'edit_plugins' ) ) ) {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- This runs after WordPress core has already verified the nonce for file editing.
@@ -116,4 +116,4 @@ function opcache_admin_init() {
 		}
 	}
 }
-add_action( 'init', 'opcache_admin_init', 1 );
+add_action( 'init', 'gps_opcache_admin_init', 1 );

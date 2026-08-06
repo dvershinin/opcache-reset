@@ -9,7 +9,7 @@ concurrency:
 jobs:
   test:
     name: Run Tests
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/tests.yml
 
   deploy:
     name: Deploy to WordPress.org

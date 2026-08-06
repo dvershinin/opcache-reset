@@ -7,6 +7,9 @@
 	<exclude-pattern>/tests/</exclude-pattern>
 	<exclude-pattern>/vendor/</exclude-pattern>
 	<exclude-pattern>/.git/</exclude-pattern>
+	<!-- Local-only symlink to the global wordpress-stubs file, created by the
+	     `phpstan-phpdoc` target. Tokenizing it exhausts phpcs's memory limit. -->
+	<exclude-pattern>/build/</exclude-pattern>
 
 	<!-- How to scan -->
 	<arg value="sp"/>

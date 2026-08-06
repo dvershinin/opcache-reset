@@ -32,7 +32,7 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
  *
  * @package opcache-reset
  */
-class OPcache_CLI_Command {
+class GPS_OPcache_CLI_Command {
 
 	/**
 	 * Reset OPcache.
@@ -214,4 +214,4 @@ class OPcache_CLI_Command {
 	}
 }
 
-WP_CLI::add_command( 'opcache', 'OPcache_CLI_Command' );
+WP_CLI::add_command( 'opcache', 'GPS_OPcache_CLI_Command' );

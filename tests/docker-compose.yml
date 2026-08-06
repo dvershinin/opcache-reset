@@ -111,18 +111,24 @@ services:
     volumes:
       - ../:/var/www/html/wp-content/plugins/opcache-reset
       - fpm_socket:/run/php
+    # Rewrite the pool to listen on a unix socket so the plugin's direct-FastCGI
+    # path has something to talk to.
+    #
+    # Do NOT go back to `sed 's|listen = 9000|...|'`: the php:8.2-fpm image was
+    # rebuilt 2026-08-05 with that line REMOVED from zz-docker.conf (its [www]
+    # section is now empty and annotated "will be removed in 8.6+"). The sed
+    # silently matched nothing, FPM fell back to www.conf's 127.0.0.1:9000, the
+    # socket was never created, and the healthcheck failed forever.
+    #
+    # Deleting every `listen*` line and appending our own is robust to both the
+    # old and new upstream layouts. zz-docker.conf sorts last, so these win.
     command: >
       sh -c "
         docker-php-ext-enable opcache &&
         echo 'opcache.enable=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
         echo 'opcache.enable_cli=1' >> /usr/local/etc/php/conf.d/opcache.ini &&
-        sed -i 's|listen = 9000|listen = /run/php/php-fpm.sock|' /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        sed -i '/listen.owner/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        sed -i '/listen.group/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        sed -i '/listen.mode/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        echo 'listen.owner = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        echo 'listen.group = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
-        echo 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        sed -i '/^[[:space:]]*listen/d' /usr/local/etc/php-fpm.d/zz-docker.conf &&
+        printf '%s\n' 'listen = /run/php/php-fpm.sock' 'listen.owner = www-data' 'listen.group = www-data' 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/zz-docker.conf &&
         php-fpm
       "
     healthcheck:

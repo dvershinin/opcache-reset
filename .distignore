@@ -12,9 +12,23 @@
 /Makefile
 /phpcs.xml.dist
 /phpstan.neon
+/phpstan-phpdoc.neon
 /phpstan-bootstrap.php
 /composer.json
 /composer.lock
+/README.md
+
+# Agent / assistant tooling
+/.claude
+/CLAUDE.md
+/AGENTS.md
+
+# Build + scratch artifacts
+/build
+/.pytest_cache
+/.playwright-cli
+/.playwright-mcp
+__pycache__
 
 # SVG source files (PNGs are in .wordpress-org)
 *.svg

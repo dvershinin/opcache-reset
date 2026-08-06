@@ -7,6 +7,10 @@ parameters:
         - tests/
         - vendor (?)
         - phpstan-bootstrap.php
+        # Local-only symlink to the wordpress-stubs file used by the PHPDoc
+        # linter (phpstan-phpdoc.neon). Analysing it here blows the memory limit.
+        # (?) = optional: build/ only exists locally, never in the main CI job.
+        - build (?)
     scanDirectories:
         - .
     bootstrapFiles:

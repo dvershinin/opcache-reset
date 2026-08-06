@@ -1,0 +1,48 @@
+# PHPDoc-type linter (separate from the main phpstan.neon).
+#
+# Purpose: catch @param / @return type annotations that disagree with reality.
+# The main phpstan.neon runs at level 3 without WordPress function signatures,
+# so it cannot see this class of bug. This config loads the WordPress stubs and
+# runs at level 5 (argument-type checking), so a wrong docblock conflicts with
+# how callers / WP core functions actually use the value and becomes a hard CI
+# error:
+#
+#   "Parameter #1 $socket of function gps_fastcgi_opcache_reset() expects array, string given"
+#   "Function gps_parse_cachetool_yml() has invalid return type socket"
+#
+# Scoped to the files whose docblocks describe the reset ladder's internal
+# contracts. The stub file is symlinked into build/ by CI and by the
+# `phpstan-phpdoc` Makefile target.
+#
+# This job intentionally only polices DOCBLOCK TYPE CORRECTNESS. The dead-code /
+# "always true|false" / redundant-defensive-check noise that level 5 surfaces is
+# suppressed below - those are not docblock bugs and are out of scope for this
+# linter (the main phpstan.neon owns general analysis).
+parameters:
+    level: 5
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - opcache-reset.php
+        - opcache-admin.php
+        - opcache-fastcgi.php
+    scanFiles:
+        - build/wordpress-stubs.php
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    ignoreErrors:
+        # --- Out of scope: dead-code / redundant-check noise (not docblock bugs) ---
+        - '#will always evaluate to (true|false)#'
+        - '#is always (true|false)\.#'
+        - '#side of && is always (true|false)#'
+        - '#in empty\(\) always exists#'
+        - '#in isset\(\) always exists and is not (nullable|falsy)#'
+        - '#in isset\(\) is not nullable#'
+        - '#Default value of the parameter#'
+        # --- Out of scope: symbols not in the WP stubs / plugin-internal ---
+        - '#Constant [A-Z_]+ not found#'
+        - '#Class (WP_CLI[a-zA-Z_]*) not found#'
+        # --- shell_exec() is string|false|null; the reset ladder null-checks by
+        #     truthiness rather than by type, which level 5 flags as a type
+        #     mismatch. Deliberate: see CLAUDE.md "The reset ladder".
+        - '#expects string, string\|false\|null given#'
+    reportUnmatchedIgnoredErrors: false

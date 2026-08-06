@@ -15,10 +15,16 @@ wp-content/backups/
 sitemap.xml
 sitemap.xml.gz
 
+# PHPStan PHPDoc linter: local symlink to the global wordpress-stubs file
+/build/
+
 # IDE and editors
 .idea/
 .vscode/
 .cursor/
+.claude/
+CLAUDE.md
+AGENTS.md
 *.sublime-project
 *.sublime-workspace
 *.code-workspace

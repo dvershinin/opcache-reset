@@ -17,13 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // FastCGI protocol constants.
-define( 'FCGI_VERSION_1', 1 );
-define( 'FCGI_BEGIN_REQUEST', 1 );
-define( 'FCGI_END_REQUEST', 3 );
-define( 'FCGI_PARAMS', 4 );
-define( 'FCGI_STDIN', 5 );
-define( 'FCGI_STDOUT', 6 );
-define( 'FCGI_RESPONDER', 1 );
+define( 'GPS_FCGI_VERSION_1', 1 );
+define( 'GPS_FCGI_BEGIN_REQUEST', 1 );
+define( 'GPS_FCGI_END_REQUEST', 3 );
+define( 'GPS_FCGI_PARAMS', 4 );
+define( 'GPS_FCGI_STDIN', 5 );
+define( 'GPS_FCGI_STDOUT', 6 );
+define( 'GPS_FCGI_RESPONDER', 1 );
 
 /**
  * Build a FastCGI record.
@@ -39,7 +39,7 @@ function gps_fcgi_build_record( $type, $content, $request_id = 1 ) {
 
 	return pack(
 		'CCnnCx',
-		FCGI_VERSION_1,
+		GPS_FCGI_VERSION_1,
 		$type,
 		$request_id,
 		$content_length,
@@ -183,9 +183,9 @@ function gps_fastcgi_opcache_reset( $socket ) {
 	// Use the plugin's own file as the script.
 	$script_filename = __DIR__ . '/opcache-reset.php';
 
-	// Build FCGI_BEGIN_REQUEST.
-	$begin_request = pack( 'nCCCCCC', FCGI_RESPONDER, 0, 0, 0, 0, 0, 0, 0 );
-	$request       = gps_fcgi_build_record( FCGI_BEGIN_REQUEST, $begin_request );
+	// Build the FastCGI BEGIN_REQUEST record.
+	$begin_request = pack( 'nCCCCCC', GPS_FCGI_RESPONDER, 0, 0, 0, 0, 0, 0, 0 );
+	$request       = gps_fcgi_build_record( GPS_FCGI_BEGIN_REQUEST, $begin_request );
 
 	// Build params.
 	// GPS_OPCACHE_RESET_INTERNAL is a custom param that triggers the reset handler.
@@ -208,9 +208,9 @@ function gps_fastcgi_opcache_reset( $socket ) {
 	// Custom param to trigger reset - not forwardable via HTTP.
 	$params .= gps_fcgi_build_nvpair( 'GPS_OPCACHE_RESET_INTERNAL', '1' );
 
-	$request .= gps_fcgi_build_record( FCGI_PARAMS, $params );
-	$request .= gps_fcgi_build_record( FCGI_PARAMS, '' ); // Empty params to end.
-	$request .= gps_fcgi_build_record( FCGI_STDIN, '' );  // Empty stdin.
+	$request .= gps_fcgi_build_record( GPS_FCGI_PARAMS, $params );
+	$request .= gps_fcgi_build_record( GPS_FCGI_PARAMS, '' ); // Empty params to end.
+	$request .= gps_fcgi_build_record( GPS_FCGI_STDIN, '' );  // Empty stdin.
 
 	// Send request.
 	fwrite( $fp, $request );
@@ -226,12 +226,12 @@ function gps_fastcgi_opcache_reset( $socket ) {
 		$response       .= $data;
 		$response_length = strlen( $response );
 
-		// Check if we received FCGI_END_REQUEST.
+		// Check if we received the FastCGI END_REQUEST record.
 		if ( $response_length >= 8 ) {
 			$pos = 0;
 			while ( $pos + 8 <= $response_length ) {
 				$header = unpack( 'Cversion/Ctype/nrequestId/ncontentLength/CpaddingLength', substr( $response, $pos, 8 ) );
-				if ( FCGI_END_REQUEST === $header['type'] ) {
+				if ( GPS_FCGI_END_REQUEST === $header['type'] ) {
 					fclose( $fp );
 					return true;
 				}

@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: [main, master]
+    branches: [trunk]
   pull_request:
-    branches: [main, master]
+    branches: [trunk]
 
 jobs:
   phpcs:
@@ -21,10 +21,17 @@ jobs:
           tools: phpcs
           extensions: mbstring
 
+      # Retry around the composer call: packagist.org occasionally has DNS /
+      # connect-timeout flakes that fail CI through no fault of the change.
       - name: Install WordPress Coding Standards
-        run: |
-          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-          composer global require --dev wp-coding-standards/wpcs:"^3.0" dealerdirect/phpcodesniffer-composer-installer
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+            composer global require --dev wp-coding-standards/wpcs:"^3.0" dealerdirect/phpcodesniffer-composer-installer
 
       - name: Run PHPCS
         run: phpcs
@@ -44,10 +51,51 @@ jobs:
           extensions: mbstring
 
       - name: Install WordPress stubs
-        run: composer global require php-stubs/wordpress-stubs
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: composer global require php-stubs/wordpress-stubs
 
       - name: Run PHPStan
         run: phpstan analyse --no-progress --error-format=github
+
+  phpstan-phpdoc:
+    name: PHPStan PHPDoc Types
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: phpstan
+          extensions: mbstring
+
+      - name: Install WordPress stubs
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: composer global require php-stubs/wordpress-stubs
+
+      # The PHPDoc linter scans the WordPress stub file so it knows the real
+      # signatures of WP functions. Symlink it into build/ where
+      # phpstan-phpdoc.neon expects it.
+      - name: Wire WordPress stubs into build/
+        run: |
+          mkdir -p build
+          ln -sf "$(composer global config home)/vendor/php-stubs/wordpress-stubs/wordpress-stubs.php" build/wordpress-stubs.php
+
+      # Catches @param/@return types that disagree with reality (e.g. a docblock
+      # claiming `array` for a value every caller passes as a string). Scoped +
+      # level 5; see phpstan-phpdoc.neon. 1G because scanning the WP stubs is heavy.
+      - name: Run PHPStan (PHPDoc types)
+        run: phpstan analyse -c phpstan-phpdoc.neon --no-progress --error-format=github --memory-limit=1G
 
   php-compatibility:
     name: PHP Compatibility
@@ -64,9 +112,14 @@ jobs:
           extensions: mbstring
 
       - name: Install PHPCompatibility
-        run: |
-          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-          composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+            composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
 
       - name: Extract declared PHP version from readme.txt
         id: php_version
@@ -80,7 +133,7 @@ jobs:
           phpcs --standard=PHPCompatibility \
             --runtime-set testVersion ${{ steps.php_version.outputs.version }} \
             --extensions=php \
-            --ignore=tests/,vendor/ \
+            --ignore=tests/,vendor/,build/ \
             .
 
   plugin-headers:
@@ -206,6 +259,53 @@ jobs:
             exit 1
           fi
 
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Stage a clean copy that mirrors what 10up/action-wordpress-plugin-deploy
+      # ships to WP.org (filtered by .distignore). Plugin Check then runs against
+      # that — same files real users get — instead of the raw git checkout, which
+      # includes .github/, tests/, dev tooling, etc.
+      #
+      # The dist directory must be named after the real plugin slug; Plugin Check
+      # derives PLUGIN_SLUG from basename(build-dir) and uses it for text-domain
+      # mismatch checks.
+      - name: Prepare dist build for Plugin Check
+        run: |
+          mkdir -p ../opcache-reset-dist/opcache-reset
+          rsync -a \
+            --exclude-from='.distignore' \
+            --exclude='.git/' \
+            ./ ../opcache-reset-dist/opcache-reset/
+
+      # The plugin-check-action builds its own Docker image + runs composer
+      # against packagist; that's been the source of transient CI failures
+      # (packagist DNS / connect timeouts). Run the action up to twice:
+      # `continue-on-error` on the first try, then a real retry if it failed.
+      - name: Run Plugin Check (attempt 1)
+        id: plugin_check_first
+        uses: WordPress/plugin-check-action@v1
+        continue-on-error: true
+        with:
+          build-dir: '../opcache-reset-dist/opcache-reset'
+          # Nothing is suppressed here on purpose. Every global symbol in this
+          # plugin carries the `gps_` / `GPS_` prefix (renamed 2026-08-06 — the
+          # old `opcache_*` helpers squatted on the PHP OPcache extension's own
+          # namespace and `get_linux_distro()` was a generic global). The plugin
+          # exposes no public hooks or user-facing constants, so there is no
+          # backward-compat reason to keep an unprefixed name. If this job flags
+          # a prefix issue, fix the code — don't add an ignore-code.
+
+      - name: Run Plugin Check (retry on transient failure)
+        if: steps.plugin_check_first.outcome == 'failure'
+        uses: WordPress/plugin-check-action@v1
+        with:
+          build-dir: '../opcache-reset-dist/opcache-reset'
+
   i18n:
     name: Internationalization
     runs-on: ubuntu-latest
@@ -219,10 +319,15 @@ jobs:
           php-version: '8.2'
 
       - name: Install WP-CLI
-        run: |
-          curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-          chmod +x wp-cli.phar
-          sudo mv wp-cli.phar /usr/local/bin/wp
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          retry_wait_seconds: 10
+          command: |
+            curl --fail --location -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            sudo mv wp-cli.phar /usr/local/bin/wp
 
       - name: Check for i18n issues
         run: |
