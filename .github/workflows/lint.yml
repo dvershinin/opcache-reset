@@ -292,19 +292,29 @@ jobs:
         continue-on-error: true
         with:
           build-dir: '../opcache-reset-dist/opcache-reset'
-          # Nothing is suppressed here on purpose. Every global symbol in this
-          # plugin carries the `gps_` / `GPS_` prefix (renamed 2026-08-06 — the
-          # old `opcache_*` helpers squatted on the PHP OPcache extension's own
-          # namespace and `get_linux_distro()` was a generic global). The plugin
-          # exposes no public hooks or user-facing constants, so there is no
-          # backward-compat reason to keep an unprefixed name. If this job flags
-          # a prefix issue, fix the code — don't add an ignore-code.
+          # Suppress ONLY the WP_Filesystem sniffs, and only because this plugin
+          # physically cannot use WP_Filesystem for them — the same exclusions,
+          # with the same rationale, already exist in phpcs.xml.dist:
+          # - is_writable(): probing the OPcache file-cache dir, which lives
+          #   outside the WP install (opcache.file_cache, typically ~/.cache).
+          # - fwrite/fread/fclose: raw socket I/O against the PHP-FPM socket in
+          #   opcache-fastcgi.php. WP_Filesystem has no socket transport at all.
+          #
+          # NOTHING ELSE is suppressed, deliberately. Every global symbol carries
+          # the `gps_`/`GPS_` prefix (renamed 2026-08-06 — the old `opcache_*`
+          # helpers squatted on the PHP OPcache extension's own namespace and
+          # `get_linux_distro()` was a generic global). The plugin exposes no
+          # public hooks or user-facing constants, so no unprefixed name has a
+          # backward-compat claim. If this job flags a prefix, a hidden file, or
+          # missing direct-access protection: fix it, don't add an ignore-code.
+          ignore-codes: 'WordPress.WP.AlternativeFunctions.file_system_operations_is_writable,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_system_operations_fread,WordPress.WP.AlternativeFunctions.file_system_operations_fclose'
 
       - name: Run Plugin Check (retry on transient failure)
         if: steps.plugin_check_first.outcome == 'failure'
         uses: WordPress/plugin-check-action@v1
         with:
           build-dir: '../opcache-reset-dist/opcache-reset'
+          ignore-codes: 'WordPress.WP.AlternativeFunctions.file_system_operations_is_writable,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_system_operations_fread,WordPress.WP.AlternativeFunctions.file_system_operations_fclose'
 
   i18n:
     name: Internationalization

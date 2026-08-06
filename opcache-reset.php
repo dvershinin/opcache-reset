@@ -26,9 +26,12 @@ if ( isset( $_SERVER['GPS_OPCACHE_RESET_INTERNAL'] ) && '1' === $_SERVER['GPS_OP
 	exit;
 }
 
-// Make sure we don't expose any info if called directly
-if ( ! function_exists( 'add_action' ) ) {
-	echo 'Hi there!  I\'m just a plugin, not much I can do when called directly.';
+// Prevent direct access.
+//
+// This MUST stay below the FastCGI handler above: that handler is deliberately
+// reachable with WordPress not loaded, which is the entire point of the direct
+// FastCGI reset path. Everything from here down requires a booted WordPress.
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

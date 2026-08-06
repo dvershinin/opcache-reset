@@ -4,6 +4,14 @@
 /.wordpress-org
 /tests
 /.cursor
+/.pytest_cache
+/.idea
+
+# Version control / hooks metadata. Plugin Check rejects ANY hidden file in the
+# shipped package ("Hidden files are not permitted"), and until 2026-08-06 both
+# of these were actually being published to WordPress.org.
+/.gitattributes
+/.pre-commit-config.yaml
 
 # Files
 /.distignore
