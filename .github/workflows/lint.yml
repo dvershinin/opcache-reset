@@ -1,10 +1,20 @@
 name: Lint
 
+# readme.txt/docs-only pushes (e.g. the nightly "Tested up to:" bump) can't affect
+# PHPCS results, so they're excluded. This is a private repo: every run is billable.
 on:
   push:
     branches: [trunk]
+    paths-ignore:
+      - 'readme.txt'
+      - '**.md'
+      - '.wordpress-org/**'
   pull_request:
     branches: [trunk]
+    paths-ignore:
+      - 'readme.txt'
+      - '**.md'
+      - '.wordpress-org/**'
 
 jobs:
   phpcs:
@@ -149,41 +159,41 @@ jobs:
           readme_stable=$(grep -i "^Stable tag:" readme.txt | sed 's/.*: *//')
           readme_wp=$(grep -i "^Requires at least:" readme.txt | sed 's/.*: *//')
           readme_php=$(grep -i "^Requires PHP:" readme.txt | sed 's/.*: *//')
-          
+
           # Extract versions from main plugin file
           plugin_version=$(grep -i "^ \* Version:" opcache-reset.php | sed 's/.*: *//')
           plugin_wp=$(grep -i "^ \* Requires at least:" opcache-reset.php | sed 's/.*: *//')
           plugin_php=$(grep -i "^ \* Requires PHP:" opcache-reset.php | sed 's/.*: *//')
-          
+
           echo "📦 Version Check:"
           echo "  readme.txt Stable tag: $readme_stable"
           echo "  Plugin header Version: $plugin_version"
-          
+
           echo "🐘 PHP Version Check:"
           echo "  readme.txt: $readme_php"
           echo "  Plugin header: $plugin_php"
-          
+
           echo "📰 WordPress Version Check:"
           echo "  readme.txt: $readme_wp"
           echo "  Plugin header: $plugin_wp"
-          
+
           errors=0
-          
+
           if [ "$readme_stable" != "$plugin_version" ]; then
             echo "::error::Version mismatch! readme.txt ($readme_stable) != plugin header ($plugin_version)"
             errors=1
           fi
-          
+
           if [ "$readme_php" != "$plugin_php" ]; then
             echo "::error::PHP version mismatch! readme.txt ($readme_php) != plugin header ($plugin_php)"
             errors=1
           fi
-          
+
           if [ "$readme_wp" != "$plugin_wp" ]; then
             echo "::error::WordPress version mismatch! readme.txt ($readme_wp) != plugin header ($plugin_wp)"
             errors=1
           fi
-          
+
           if [ $errors -eq 0 ]; then
             echo "✅ All headers match!"
           else
@@ -231,28 +241,28 @@ jobs:
       - name: Check for common security issues
         run: |
           errors=0
-          
+
           # Check for eval() usage
           if grep -rn '\beval\s*(' *.php 2>/dev/null; then
             echo "::error::Found eval() usage - potential security risk"
             errors=1
           fi
-          
+
           # Check for create_function (deprecated and dangerous)
           if grep -rn '\bcreate_function\s*(' *.php 2>/dev/null; then
             echo "::error::Found create_function() - deprecated and insecure"
             errors=1
           fi
-          
+
           # Check for unserialize without allowed_classes
           if grep -rn '\bunserialize\s*(' *.php 2>/dev/null | grep -v 'allowed_classes'; then
             echo "::warning::Found unserialize() - ensure allowed_classes is set"
           fi
-          
+
           # Check for direct $_GET/$_POST without sanitization nearby
           echo "ℹ️  Manual review recommended for superglobal usage:"
           grep -rn '\$_GET\|\$_POST\|\$_REQUEST' *.php 2>/dev/null | head -10 || true
-          
+
           if [ $errors -eq 0 ]; then
             echo "✅ No critical security issues found"
           else

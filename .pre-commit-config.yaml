@@ -28,7 +28,10 @@ repos:
     hooks:
       - id: no-escaped-quotes-in-text
         name: Check for escaped quotes in text files
-        entry: bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
+        # Literal block scalar: the command contains ": " and backslashes, which a
+        # plain YAML scalar can't hold (it parsed as a mapping and broke the config).
+        entry: |-
+          bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
         language: system
         files: \.(txt|md)$
         types: [text]

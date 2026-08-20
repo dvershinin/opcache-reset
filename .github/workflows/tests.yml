@@ -1,10 +1,23 @@
 name: Tests
 
+# readme.txt/docs-only pushes (e.g. the nightly "Tested up to:" bump) can't affect
+# integration results, so they're excluded. This is a private repo: every run is
+# billable, and starving the budget here blocks assets.yml from reaching wp.org.
+# Releases are unaffected: deploy.yml invokes this via workflow_call, which is
+# never subject to path filters.
 on:
   push:
     branches: [trunk]
+    paths-ignore:
+      - 'readme.txt'
+      - '**.md'
+      - '.wordpress-org/**'
   pull_request:
     branches: [trunk]
+    paths-ignore:
+      - 'readme.txt'
+      - '**.md'
+      - '.wordpress-org/**'
   workflow_call:  # Allow this workflow to be called by other workflows
 
 jobs:
