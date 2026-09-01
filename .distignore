@@ -12,6 +12,11 @@
 # of these were actually being published to WordPress.org.
 /.gitattributes
 /.pre-commit-config.yaml
+/.file-limits
+
+# Pre-commit helper scripts. Plugin Check rejects .sh files in the shipped
+# package ("Application files are not permitted"); /scripts leaked into 2.4.2.
+/scripts
 
 # Files
 /.distignore
@@ -52,4 +57,3 @@ __pycache__
 # OS files
 .DS_Store
 Thumbs.db
-
