@@ -3,7 +3,7 @@ Tags: PHP, Zend, OPcache, cache, WP-CLI
 Requires at least: 5.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.1
+Stable tag: 2.4.2
 License: GPLv2 or later
 Donate link: https://github.com/sponsors/dvershinin
 Plugin URI: https://www.getpagespeed.com/wordpress-opcache-reset
@@ -47,6 +47,9 @@ Output status as JSON:
     wp opcache status --format=json
 
 == Changelog ==
+
+= 2.4.2 =
+* Fix PHP warning `pack(): 1 arguments unused` in the FastCGI BEGIN_REQUEST builder, which made every WP-CLI cron run produce output
 
 = 2.4.1 =
 * Reset PHP-FPM OPcache from cron and WP-CLI without `shell_exec` or a CacheTool binary

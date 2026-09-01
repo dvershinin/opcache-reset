@@ -1,0 +1,3 @@
+# .cursor/rules holds the machine-synced global rule set (git-ignored),
+# which alone exceeds the default 8000-char budget in every repo it syncs to.
+max_rules_chars: 40000

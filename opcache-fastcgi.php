@@ -220,7 +220,8 @@ function gps_fastcgi_opcache_reset( $socket, $chroot = null ) {
 	}
 
 	// Build the FastCGI BEGIN_REQUEST record.
-	$begin_request = pack( 'nCCCCCC', GPS_FCGI_RESPONDER, 0, 0, 0, 0, 0, 0, 0 );
+	// Body: role (2 bytes), flags (1 byte), reserved (5 bytes) = 8 bytes total.
+	$begin_request = pack( 'nCCCCCC', GPS_FCGI_RESPONDER, 0, 0, 0, 0, 0, 0 );
 	$request       = gps_fcgi_build_record( GPS_FCGI_BEGIN_REQUEST, $begin_request );
 
 	// Build params.

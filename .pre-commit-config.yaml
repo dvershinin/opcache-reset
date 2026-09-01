@@ -28,11 +28,11 @@ repos:
     hooks:
       - id: no-escaped-quotes-in-text
         name: Check for escaped quotes in text files
-        # Literal block scalar: the command contains ": " and backslashes, which a
-        # plain YAML scalar can't hold (it parsed as a mapping and broke the config).
-        entry: |-
-          bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
-        language: system
+        # A script beats an inline `bash -c`: the pattern's backslashes survived
+        # neither YAML nor shlex quoting reliably (and `bash -c` swallowed the
+        # first filename as $0).
+        entry: scripts/check-no-escaped-quotes.sh
+        language: script
         files: \.(txt|md)$
         types: [text]
 
@@ -41,7 +41,9 @@ repos:
     hooks:
       - id: phpcs
         name: PHP CodeSniffer
-        entry: bash -c 'if command -v phpcs &> /dev/null; then phpcs --standard=phpcs.xml.dist "$@"; else echo "phpcs not installed, skipping"; fi'
+        # Prefer the Composer-global phpcs, which has the WordPress sniffs
+        # registered; a bare brew phpcs knows no WordPress-* standards.
+        entry: bash -c 'phpcs="$HOME/.composer/vendor/bin/phpcs"; [ -x "$phpcs" ] || phpcs=phpcs; if command -v "$phpcs" &> /dev/null; then "$phpcs" --standard=phpcs.xml.dist "$@"; else echo "phpcs not installed, skipping"; fi' --
         language: system
         files: \.php$
         exclude: ^tests/
@@ -51,7 +53,9 @@ repos:
     hooks:
       - id: phpstan
         name: PHPStan
-        entry: bash -c 'if command -v phpstan &> /dev/null; then phpstan analyse --no-progress "$@"; else echo "phpstan not installed, skipping"; fi'
+        # Same memory limit the Makefile's `make phpstan` uses; the 128M
+        # default crashes the parallel worker.
+        entry: bash -c 'if command -v phpstan &> /dev/null; then phpstan analyse --no-progress --memory-limit=512M "$@"; else echo "phpstan not installed, skipping"; fi'
         language: system
         files: \.php$
         exclude: ^tests/
